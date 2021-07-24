@@ -15,7 +15,7 @@ namespace GZipTest.Files
             : base(filePath, fileStream)
         {
             this.compressedFileInfo = new CompressedFileMeta(blockSizeBytes, blocksCount);
-            fileStream.Position = compressedFileInfo.GetLength();
+            fileStream.Position = compressedFileInfo.GetLength() + FileBeginning.Length + BlocksBeginning.Length + BlocksEnding.Length;
         }
 
         public void Write(byte[] bytesToWrite, int blockNumber)
@@ -37,13 +37,16 @@ namespace GZipTest.Files
             {
                 fileStream.Position = 0;
 
+                fileStream.Write(UTF8Encoding.UTF8.GetBytes(FileBeginning));
                 Write(compressedFileInfo.BlocksCount);
                 Write(compressedFileInfo.BlockSize);
+                fileStream.Write(UTF8Encoding.UTF8.GetBytes(BlocksBeginning));
                 foreach (BlockInfo blockInfo in compressedFileInfo.InsertedBlocks)
                 {
                     Write(blockInfo.OrderNumber);
                     Write(blockInfo.CompressedSize);
                 }
+                fileStream.Write(UTF8Encoding.UTF8.GetBytes(BlocksEnding));
             }
         }
 

@@ -6,13 +6,19 @@ using System.Text;
 
 namespace GZipTest.Files
 {
+    // 8 bytes - format mark (GZipTest)
     // 8 bytes - blocks count
     // 4 bytes - block original size
-    // list of blocks
+    // block list
+    // 2 bytes - beginning of blocks list (BB)
     //      4 bytes - block order number
     //      4 bytes - block compressed size
+    // end of blocks list (BE)
     public abstract class CompressedFile : IDisposable
     {
+        protected static readonly string FileBeginning = "GZipTest";
+        protected static readonly string BlocksBeginning = "BB";
+        protected static readonly string BlocksEnding = "BE";
         protected readonly string filePath;
         protected readonly FileStream fileStream;
         protected bool isClosed;

@@ -127,7 +127,7 @@ namespace GZipTest
         private static void CreateDirectory(string originalFileName)
         {
             var directoryPath = Path.GetDirectoryName(originalFileName);
-            if (!Directory.Exists(directoryPath))
+            if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath))
                 Directory.CreateDirectory(directoryPath);
         }
 
@@ -160,7 +160,7 @@ namespace GZipTest
 
         public override string ToString()
         {
-            return $"BlockInfo: {BlockInfo.ToString()}, BlocksOriginalSize: {BlocksOriginalSize}";
+            return $"BlockInfo: {BlockInfo}, BlocksOriginalSize: {BlocksOriginalSize}";
         }
     }
 }

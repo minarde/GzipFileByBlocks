@@ -8,6 +8,6 @@ namespace GZipTest
     {
         public static int BlockSizeBytes = 1024 * 1024;
         public static int ConsumersCount = Environment.ProcessorCount;
-        public static int QueueSize = ConsumersCount * 3;
+        public static int QueueSize = ConsumersCount * 5;
     }
 }

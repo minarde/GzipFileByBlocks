@@ -19,6 +19,11 @@ namespace GZipTest.Test
             return Path.Combine(archiveFilesFolder, Guid.NewGuid().ToString() + ".tmp");
         }
 
+        public static string GetTempFolderPath()
+        {
+            return tempFilesFolder;
+        }
+
         public static string GenerateTempFilePath()
         {
             return Path.Combine(tempFilesFolder, Guid.NewGuid().ToString() + ".tmp");

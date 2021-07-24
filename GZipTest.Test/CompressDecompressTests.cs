@@ -31,7 +31,7 @@ namespace GZipTest.Test
         public void CompressAndDecompress(string originalFileName, long originalFileSize, bool isFilledWithZeroes)
         {
             // given
-            var originalFilePath = Path.Combine(TestFolders.GenerateTempFilePath(), originalFileName);
+            var originalFilePath = Path.Combine(TestFolders.GetTempFolderPath(), originalFileName);
             TestFolders.GenerateFile(originalFilePath, originalFileSize);
             long fileSize = new FileInfo(originalFilePath).Length;
             Assert.That(fileSize, Is.EqualTo(originalFileSize));
