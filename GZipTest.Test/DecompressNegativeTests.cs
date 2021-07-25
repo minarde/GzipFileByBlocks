@@ -60,10 +60,11 @@ namespace GZipTest.Test
             string archiveFilePath = TestFolders.GenerateTempFilePath();
             TestFolders.GenerateFile(archiveFilePath, 1);
 
-            // when, then
-            Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
-                .And.Message.EndsWith("has wrong format"),
-                () => new FileDecompressor().Decompress(archiveFilePath, TestFolders.GenerateTempFilePath(), Console.WriteLine));
+            // when
+            bool result = new FileDecompressor().Decompress(archiveFilePath, TestFolders.GenerateTempFilePath(), Console.WriteLine);
+
+            // then
+            Assert.That(result, Is.EqualTo(false));
         }
     }
 }
