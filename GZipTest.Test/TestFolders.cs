@@ -57,12 +57,12 @@ namespace GZipTest.Test
                 Directory.Delete(resultFilesFolder, true);
         }
 
-        public static void GenerateFile(string originalFilePath, long size, bool isFilledWithZeroes = false)
+        public static void GenerateFile(string filePath, long size, bool isFilledWithZeroes = false)
         {
-            var directory = Path.GetDirectoryName(originalFilePath);
-            if (!Directory.Exists(directory))
-                Directory.CreateDirectory(Path.GetDirectoryName(originalFilePath));
-            using FileStream file = File.Create(originalFilePath);
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+            using FileStream file = File.Create(filePath);
             long fileSize = 0;
             int blockSize = 1024 * 1024;
             long counter = size / blockSize;

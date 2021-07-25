@@ -18,7 +18,7 @@ namespace GZipTest.Test
         {
             Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
                 .And.Message.EqualTo("Source file path is empty"),
-                () => new FileCompressor().Compress(null, TestFolders.GenerateTempFilePath()));
+                () => new FileCompressor().Compress(null, TestFolders.GenerateTempFilePath(), Console.WriteLine));
         }
 
         [Test]
@@ -26,7 +26,7 @@ namespace GZipTest.Test
         {
             Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
                 .And.Message.EqualTo("Archive file path is empty"),
-                () => new FileCompressor().Compress(TestFolders.GenerateTempFilePath(), null));
+                () => new FileCompressor().Compress(TestFolders.GenerateTempFilePath(), null, Console.WriteLine));
         }
 
         [Test]
@@ -35,7 +35,7 @@ namespace GZipTest.Test
             string archiveFilePath = TestFolders.GenerateTempFilePath();
             Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
                 .And.Message.EndsWith("does not exist"),
-                () => new FileCompressor().Compress(archiveFilePath, TestFolders.GenerateTempFilePath()));
+                () => new FileCompressor().Compress(archiveFilePath, TestFolders.GenerateTempFilePath(), Console.WriteLine));
         }
 
         [Test]
@@ -50,7 +50,7 @@ namespace GZipTest.Test
             // when, then
             Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
                 .And.Message.EndsWith("exists"),
-                () => new FileCompressor().Compress(originalFilePath, archiveFilePath));
+                () => new FileCompressor().Compress(originalFilePath, archiveFilePath, Console.WriteLine));
         }
 
     }

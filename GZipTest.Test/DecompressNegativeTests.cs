@@ -18,7 +18,7 @@ namespace GZipTest.Test
         {
             Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
                 .And.Message.EqualTo("Decompressed file path is empty"),
-                () => new FileDecompressor().Decompress(TestFolders.GenerateTempFilePath(), null));
+                () => new FileDecompressor().Decompress(TestFolders.GenerateTempFilePath(), null, Console.WriteLine));
         }
 
         [Test]
@@ -26,7 +26,7 @@ namespace GZipTest.Test
         {
             Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
                 .And.Message.EqualTo("Archive file path is empty"),
-                () => new FileDecompressor().Decompress(null, TestFolders.GenerateTempFilePath()));
+                () => new FileDecompressor().Decompress(null, TestFolders.GenerateTempFilePath(), Console.WriteLine));
         }
 
         [Test]
@@ -35,7 +35,7 @@ namespace GZipTest.Test
             string archiveFilePath = TestFolders.GenerateTempFilePath();
             Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
                 .And.Message.EndsWith("does not exist"),
-                () => new FileDecompressor().Decompress(archiveFilePath, TestFolders.GenerateTempFilePath()));
+                () => new FileDecompressor().Decompress(archiveFilePath, TestFolders.GenerateTempFilePath(), Console.WriteLine));
         }
 
         [Test]
@@ -50,7 +50,20 @@ namespace GZipTest.Test
             // when, then
             Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
                 .And.Message.EndsWith("exists"),
-                () => new FileDecompressor().Decompress(archiveFilePath, resultFilePath));
+                () => new FileDecompressor().Decompress(archiveFilePath, resultFilePath, Console.WriteLine));
+        }
+
+        [Test]
+        public void WrongArchiveFileFormat()
+        {
+            // given
+            string archiveFilePath = TestFolders.GenerateTempFilePath();
+            TestFolders.GenerateFile(archiveFilePath, 1);
+
+            // when, then
+            Assert.Throws(Is.TypeOf<CompressDecompressFileException>()
+                .And.Message.EndsWith("has wrong format"),
+                () => new FileDecompressor().Decompress(archiveFilePath, TestFolders.GenerateTempFilePath(), Console.WriteLine));
         }
     }
 }

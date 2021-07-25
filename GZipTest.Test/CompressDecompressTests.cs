@@ -32,9 +32,7 @@ namespace GZipTest.Test
         {
             // given
             var originalFilePath = Path.Combine(TestFolders.GetTempFolderPath(), originalFileName);
-            TestFolders.GenerateFile(originalFilePath, originalFileSize);
-            long fileSize = new FileInfo(originalFilePath).Length;
-            Assert.That(fileSize, Is.EqualTo(originalFileSize));
+            TestFolders.GenerateFile(originalFilePath, originalFileSize, isFilledWithZeroes);
             var archiveFilePath = TestFolders.GenerateArchiveFilePath();
             var decompressedFilePath = TestFolders.GenerateResultFilePathSameName(originalFileName);
             Console.WriteLine($"Compressing {originalFilePath} to {archiveFilePath} and decompressing to {decompressedFilePath}");

@@ -36,7 +36,7 @@ namespace GZipTest.Data
                 $"blocksOriginalSize: {BlockSize}\n");
             foreach (BlockInfo blockInfo in InsertedBlocks)
             {
-                sb.Append($"{blockInfo.ToString()}\n");
+                sb.Append($"{blockInfo}\n");
             }
             return sb.ToString();
         }

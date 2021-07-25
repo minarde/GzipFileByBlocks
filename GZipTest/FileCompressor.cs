@@ -14,7 +14,7 @@ namespace GZipTest
 {
     public class FileCompressor
     {
-        public bool Compress(string originalFileName, string archiveFileName, Action<string> writeLog = null)
+        public bool Compress(string originalFileName, string archiveFileName, Action<string> writeLog)
         {
             CheckArguments(originalFileName, archiveFileName);
 
@@ -23,7 +23,7 @@ namespace GZipTest
                 using Stream source = File.OpenRead(originalFileName);
                 writeLog($"Start compressing {originalFileName}");
 
-                long blocksCount = (long)Math.Ceiling((float)source.Length / Constants.BlockSizeBytes);
+                long blocksCount = (long)Math.Ceiling((double)source.Length / Constants.BlockSizeBytes);
 
                 using CompressedFileWriter fileWriter = CompressedFile.WriteCompressedFile(archiveFileName, blocksCount, Constants.BlockSizeBytes);
 

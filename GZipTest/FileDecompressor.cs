@@ -14,7 +14,7 @@ namespace GZipTest
 {
     public class FileDecompressor
     {
-        public bool Decompress(string archiveFileName, string decompressingFileName, Action<string> writeLog = null)
+        public bool Decompress(string archiveFileName, string decompressingFileName, Action<string> writeLog)
         {
             CheckArguments(archiveFileName, decompressingFileName);
 
