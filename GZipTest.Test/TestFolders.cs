@@ -29,11 +29,6 @@ namespace GZipTest.Test
             return Path.Combine(tempFilesFolder, Guid.NewGuid().ToString() + ".tmp");
         }
 
-        public static string GenerateResultFilePath(string directory, string extension)
-        {
-            return Path.Combine(resultFilesFolder, Guid.NewGuid().ToString() + extension);
-        }
-
         public static string GenerateResultFilePathSameName(string originalFileName)
         {
             return Path.Combine(resultFilesFolder, "decompressed" + originalFileName);

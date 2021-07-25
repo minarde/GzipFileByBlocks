@@ -31,20 +31,50 @@ namespace GZipTest
                 BlockingCollection<DecompressBlockData> queue = new BlockingCollection<DecompressBlockData>(Constants.QueueSize);
                 object lockObject = new object();
 
-                Task producer = Task.Factory.StartNew(() => ProduceBlocks(queue, archiveFile, compressedFileInfo));
+                var cancellationTokenSource = new CancellationTokenSource();
+                var cancellationToken = cancellationTokenSource.Token;
+
+                Task producer = Task.Factory.StartNew(() => ProduceBlocks(
+                    queue,
+                    archiveFile,
+                    compressedFileInfo,
+                    cancellationTokenSource,
+                    cancellationToken,
+                    writeLog));
 
                 List<Task> consumers = new List<Task>();
-                for (int i = 1; i < Constants.ConsumersCount; ++i)
-                    consumers.Add(Task.Run(() => ConsumeFileBlocks(queue, decompressedFileStream, lockObject)));
+                for (int i = 0; i < Constants.ConsumersCount; ++i)
+                    consumers.Add(Task.Run(() => ConsumeFileBlocks(
+                        queue,
+                        decompressedFileStream,
+                        lockObject,
+                        cancellationTokenSource,
+                        cancellationToken,
+                        writeLog)));
 
                 try
                 {
-                    Task.WaitAll(producer);
+                    Task.WaitAll(new Task[] { producer }, cancellationToken);
                     queue.CompleteAdding();
-                    Task.WaitAll(consumers.ToArray());
+                    Task.WaitAll(consumers.ToArray(), cancellationToken);
 
-                    writeLog($"Finish decompressing {archiveFileName} to {decompressingFileName}");
-                    return true;
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        writeLog($"Decompressing {archiveFileName} to {decompressingFileName} was cancelled due to error");
+                        return false;
+                    }
+                    else
+                    {
+                        writeLog($"Finish decompressing {archiveFileName} to {decompressingFileName}");
+                        return true;
+                    }
+                }
+                catch(OperationCanceledException ocExc)
+                {
+                    writeLog($"Decompressing {archiveFileName} to {decompressingFileName} failed: {ocExc.Message}");
+                    decompressedFileStream.Close();
+                    DeleteResultFileOnException(decompressingFileName, writeLog);
+                    return false;
                 }
                 catch (AggregateException aggrExc)
                 {
@@ -80,35 +110,101 @@ namespace GZipTest
             }
         }
 
-        private static void ProduceBlocks(BlockingCollection<DecompressBlockData> queue, CompressedFileReader archiveFile, CompressedFileMeta compressedFileInfo)
+        private static void ProduceBlocks(BlockingCollection<DecompressBlockData> queue,
+            CompressedFileReader archiveFile,
+            CompressedFileMeta compressedFileInfo,
+            CancellationTokenSource cancellationTokenSource,
+            CancellationToken cancellationToken,
+            Action<string> writeLog)
         {
-            foreach (BlockInfo blockInfo in compressedFileInfo.InsertedBlocks)
+            try
             {
-                byte[] buffer = new byte[blockInfo.CompressedSize];
-                int readBytes = archiveFile.Read(buffer);
-                if (readBytes > 0)
-                    queue.Add(new DecompressBlockData(buffer, compressedFileInfo.BlockSize, blockInfo));
+                foreach (BlockInfo blockInfo in compressedFileInfo.InsertedBlocks)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
+                    byte[] buffer = new byte[blockInfo.CompressedSize];
+                    int readBytes = archiveFile.Read(buffer);
+                    if (readBytes > 0)
+                        queue.Add(new DecompressBlockData(buffer, compressedFileInfo.BlockSize, blockInfo));
+                }
+            }
+            catch (CompressDecompressFileException cdfExc)
+            {
+                writeLog($"Exception during decompressing: {cdfExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (IOException ioExc)
+            {
+                writeLog($"Exception during decompressing, " +
+                    $"error during reading or writing file: {ioExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (UnauthorizedAccessException auExc)
+            {
+                writeLog($"Exception during decompressing , " +
+                    $"error during reading or writing file: {auExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (Exception exc)
+            {
+                writeLog($"Exception during decompressing: {exc}");
+                cancellationTokenSource.Cancel();
             }
         }
 
-        private static void ConsumeFileBlocks(BlockingCollection<DecompressBlockData> queue, FileStream decompressedFileStream, object lockObject)
+        private static void ConsumeFileBlocks(BlockingCollection<DecompressBlockData> queue,
+            FileStream decompressedFileStream,
+            object lockObject,
+            CancellationTokenSource cancellationTokenSource,
+            CancellationToken cancellationToken,
+            Action<string> writeLog)
         {
-            foreach (DecompressBlockData data in queue.GetConsumingEnumerable())
+            try
             {
-                byte[] decompressed;
-                using (var decompressedMemoryStream = new MemoryStream(data.Buffer, 0, data.BlockInfo.CompressedSize))
-                using (var gzipStream = new GZipStream(decompressedMemoryStream, CompressionMode.Decompress))
-                using (var mStream = new MemoryStream())
+                foreach (DecompressBlockData data in queue.GetConsumingEnumerable())
                 {
-                    gzipStream.CopyTo(mStream);
-                    decompressed = mStream.ToArray();
-                }
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
+                    byte[] decompressed;
+                    using (var decompressedMemoryStream = new MemoryStream(data.Buffer, 0, data.BlockInfo.CompressedSize))
+                    using (var gzipStream = new GZipStream(decompressedMemoryStream, CompressionMode.Decompress))
+                    using (var mStream = new MemoryStream())
+                    {
+                        gzipStream.CopyTo(mStream);
+                        decompressed = mStream.ToArray();
+                    }
 
-                lock (lockObject)
-                {
-                    decompressedFileStream.Position = data.BlocksOriginalSize * data.BlockInfo.OrderNumber;
-                    decompressedFileStream.Write(decompressed, 0, decompressed.Length);
+                    lock (lockObject)
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                            break;
+                        decompressedFileStream.Position = data.BlocksOriginalSize * data.BlockInfo.OrderNumber;
+                        decompressedFileStream.Write(decompressed, 0, decompressed.Length);
+                    }
                 }
+            }
+            catch (CompressDecompressFileException cdfExc)
+            {
+                writeLog($"Exception during decompressing: {cdfExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (IOException ioExc)
+            {
+                writeLog($"Exception during decompressing, " +
+                    $"error during reading or writing file: {ioExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (UnauthorizedAccessException auExc)
+            {
+                writeLog($"Exception during decompressing , " +
+                    $"error during reading or writing file: {auExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (Exception exc)
+            {
+                writeLog($"Exception during decompressing: {exc}");
+                cancellationTokenSource.Cancel();
             }
         }
 

@@ -39,15 +39,17 @@ namespace GZipTest.Test
 
             // when
             // compress
-            new FileCompressor().Compress(originalFilePath, archiveFilePath, Console.WriteLine);
+            bool resultOfCompression = new FileCompressor().Compress(originalFilePath, archiveFilePath, Console.WriteLine);
 
             // then
+            Assert.That(resultOfCompression, Is.EqualTo(true));
             long archiveFileSize = new FileInfo(archiveFilePath).Length;
             Assert.That(archiveFileSize, Is.GreaterThan(0));
 
             // when
             // decompress
-            new FileDecompressor().Decompress(archiveFilePath, decompressedFilePath, Console.WriteLine);
+            bool resultOfDecompression = new FileDecompressor().Decompress(archiveFilePath, decompressedFilePath, Console.WriteLine);
+            Assert.That(resultOfDecompression, Is.EqualTo(true));
 
             // then
             var originalHash = TestFolders.GetFileHash(originalFilePath);

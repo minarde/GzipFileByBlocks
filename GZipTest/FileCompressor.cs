@@ -29,22 +29,42 @@ namespace GZipTest
 
                 BlockingCollection<CompressBlockData> queue = new BlockingCollection<CompressBlockData>(Constants.QueueSize);
 
-                Task producer = Task.Factory.StartNew(() => ProduceFileBlocks(queue, source));
+                var cancellationTokenSource = new CancellationTokenSource();
+                var cancellationToken = cancellationTokenSource.Token;
+
+                Task producer = Task.Factory.StartNew(() => ProduceFileBlocks(
+                    queue,
+                    source,
+                    cancellationTokenSource,
+                    cancellationToken,
+                    writeLog));
 
                 List<Task> consumers = new List<Task>();
-                for (int i = 1; i < Constants.ConsumersCount; ++i)
-                    consumers.Add(Task.Run(() => ConsumeFileBlocks(queue, fileWriter)));
+                for (int i = 0; i < Constants.ConsumersCount; ++i)
+                    consumers.Add(Task.Run(() => ConsumeFileBlocks(
+                        queue,
+                        fileWriter,
+                        cancellationTokenSource,
+                        cancellationToken,
+                        writeLog)));
 
                 try
                 {
-                    Task.WaitAll(producer);
+                    Task.WaitAll(new Task[] { producer }, cancellationToken);
                     queue.CompleteAdding();
-                    Task.WaitAll(consumers.ToArray());
+                    Task.WaitAll(consumers.ToArray(), cancellationToken);
 
-                    fileWriter.WriteFinalInfo();
-
-                    writeLog($"Finish compressing {originalFileName} to {archiveFileName}");
-                    return true;
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        writeLog($"Compressing {originalFileName} to {archiveFileName} was cancelled due to error");
+                        return false;
+                    }
+                    else
+                    {
+                        fileWriter.WriteFinalInfo();
+                        writeLog($"Finish compressing {originalFileName} to {archiveFileName}");
+                        return true;
+                    }
                 }
                 catch (AggregateException aggrExc)
                 {
@@ -59,6 +79,13 @@ namespace GZipTest
                             writeLog($"Exception during compressing {originalFileName} to {archiveFileName}: {innerExc}");
                     }
                     writeLog($"Compressing {originalFileName} to {archiveFileName} failed");
+                    fileWriter.Close();
+                    DeleteResultFileOnException(archiveFileName, writeLog);
+                    return false;
+                }
+                catch (OperationCanceledException ocExc)
+                {
+                    writeLog($"Compressing {originalFileName} to {archiveFileName} failed: {ocExc.Message}");
                     fileWriter.Close();
                     DeleteResultFileOnException(archiveFileName, writeLog);
                     return false;
@@ -80,38 +107,98 @@ namespace GZipTest
             }
         }
 
-        private static void ProduceFileBlocks(BlockingCollection<CompressBlockData> queue, Stream source)
+        private static void ProduceFileBlocks(BlockingCollection<CompressBlockData> queue,
+            Stream source,
+            CancellationTokenSource cancellationTokenSource,
+            CancellationToken cancellationToken,
+            Action<string> writeLog)
         {
-            int counter = 0;
-            while (true)
+            try
             {
-                byte[] buffer = new byte[Constants.BlockSizeBytes];
-                int readBytes = source.Read(buffer, 0, buffer.Length);
-                if (readBytes <= 0)
-                    break;
+                int counter = 0;
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    byte[] buffer = new byte[Constants.BlockSizeBytes];
+                    int readBytes = source.Read(buffer, 0, buffer.Length);
+                    if (readBytes <= 0)
+                        break;
 
-                int localCounter = counter;
-                queue.Add(new CompressBlockData(buffer, readBytes, localCounter));
+                    int localCounter = counter;
+                    queue.Add(new CompressBlockData(buffer, readBytes, localCounter));
 
-                counter++;
+                    counter++;
+                }
+            }
+            catch (CompressDecompressFileException cdfExc)
+            {
+                writeLog($"Exception during compressing: {cdfExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (IOException ioExc)
+            {
+                writeLog($"Exception during compressing, " +
+                    $"error during reading or writing file: {ioExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (UnauthorizedAccessException auExc)
+            {
+                writeLog($"Exception during compressing , " +
+                    $"error during reading or writing file: {auExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (Exception exc)
+            {
+                writeLog($"Exception during compressing: {exc}");
+                cancellationTokenSource.Cancel();
             }
         }
 
-        private static void ConsumeFileBlocks(BlockingCollection<CompressBlockData> queue, CompressedFileWriter fileWriter)
+        private static void ConsumeFileBlocks(BlockingCollection<CompressBlockData> queue,
+            CompressedFileWriter fileWriter,
+            CancellationTokenSource cancellationTokenSource,
+            CancellationToken cancellationToken,
+            Action<string> writeLog)
         {
-            foreach (CompressBlockData data in queue.GetConsumingEnumerable())
+            try
             {
-                byte[] compressed;
-                using (var compressedMemoryStream = new MemoryStream())
+                foreach (CompressBlockData data in queue.GetConsumingEnumerable())
                 {
-                    using (var gzipStream = new GZipStream(compressedMemoryStream, CompressionMode.Compress))
-                    using (var mStream = new MemoryStream(data.Buffer, 0, data.ReadBytes))
-                        mStream.CopyTo(gzipStream);
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
+                    byte[] compressed;
+                    using (var compressedMemoryStream = new MemoryStream())
+                    {
+                        using (var gzipStream = new GZipStream(compressedMemoryStream, CompressionMode.Compress))
+                        using (var mStream = new MemoryStream(data.Buffer, 0, data.ReadBytes))
+                            mStream.CopyTo(gzipStream);
 
-                    compressed = compressedMemoryStream.ToArray();
+                        compressed = compressedMemoryStream.ToArray();
+                    }
+
+                    fileWriter.Write(compressed, data.BlockNumber);
                 }
-
-                fileWriter.Write(compressed, data.BlockNumber);
+            }
+            catch (CompressDecompressFileException cdfExc)
+            {
+                writeLog($"Exception during compressing: {cdfExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (IOException ioExc)
+            {
+                writeLog($"Exception during compressing, " +
+                    $"error during reading or writing file: {ioExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (UnauthorizedAccessException auExc)
+            {
+                writeLog($"Exception during compressing , " +
+                    $"error during reading or writing file: {auExc.Message}");
+                cancellationTokenSource.Cancel();
+            }
+            catch (Exception exc)
+            {
+                writeLog($"Exception during compressing: {exc}");
+                cancellationTokenSource.Cancel();
             }
         }
 
